@@ -3,7 +3,7 @@ import express from "express";
 const app = express();
 app.use(express.json());
 
-const VERIFY_TOKEN = "mokokobale123"; // use same token in Meta
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN; // 👈 from Render env
 
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
@@ -11,8 +11,9 @@ app.get("/webhook", (req, res) => {
   const challenge = req.query["hub.challenge"];
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
-    return res.status(200).send(challenge);
+    return res.status(200).send(challenge); // must be plain text
   }
+
   return res.sendStatus(403);
 });
 
