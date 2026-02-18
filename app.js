@@ -20,6 +20,8 @@ const sessions = {};
 // Webhook Verification (GET)
 // =============================
 app.get("/webhook", (req, res) => {
+  console.log("Incoming webhook:");
+  console.log(JSON.stringify(req.body, null, 2));
   const mode = req.query["hub.mode"];
   const challenge = req.query["hub.challenge"];
   const token = req.query["hub.verify_token"];
