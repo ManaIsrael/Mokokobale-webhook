@@ -1,55 +1,9 @@
-import express from "express";
-import fetch from "node-fetch";
-
-const app = express();
-app.use(express.json());
-
-const port = process.env.PORT || 3000;
-const verifyToken = process.env.VERIFY_TOKEN;
-const whatsappToken = process.env.WHATSAPP_TOKEN;
-const phoneNumberId = process.env.PHONE_NUMBER_ID;
-
-// In-memory session storage
-const sessions = {};
-
-// Webhook Verification
-app.get("/webhook", (req, res) => {
-  const mode = req.query["hub.mode"];
-  const challenge = req.query["hub.challenge"];
-  const token = req.query["hub.verify_token"];
-
-  if (mode === "subscribe" && token === verifyToken) {
-    return res.status(200).send(challenge);
-  }
-  return res.sendStatus(403);
-});
-
-// Send WhatsApp Message
-async function sendMessage(to, message) {
-  await fetch(
-    `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${whatsappToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to,
-        text: { body: message },
-      }),
-    }
-  );
-}
-
-// Webhook Listener
-app.post("/webhook", async (req, res) => {
+async function handleIncomingMessage(body) {
   try {
     const message =
-      req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+      body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
 
-    if (!message) return res.sendStatus(200);
+    if (!message) return;
 
     const from = message.from;
     const text = message.text?.body?.toLowerCase();
@@ -60,7 +14,6 @@ app.post("/webhook", async (req, res) => {
 
     const userSession = sessions[from];
 
-    // Step 1: Welcome
     if (userSession.step === "start") {
       userSession.step = "service";
       await sendMessage(
@@ -69,7 +22,6 @@ app.post("/webhook", async (req, res) => {
       );
     }
 
-    // Step 2: Service Selection
     else if (userSession.step === "service") {
       if (text === "1") {
         userSession.service = "Massage";
@@ -87,7 +39,6 @@ app.post("/webhook", async (req, res) => {
       );
     }
 
-    // Step 3: Time Selection
     else if (userSession.step === "time") {
       if (text === "1") {
         userSession.time = "Tomorrow 10AM";
@@ -105,27 +56,20 @@ app.post("/webhook", async (req, res) => {
       );
     }
 
-    // Step 4: Confirmation
     else if (userSession.step === "confirm") {
       if (text === "yes") {
         await sendMessage(
           from,
           "✅ Booking confirmed! We look forward to seeing you."
         );
-        delete sessions[from];
       } else {
         await sendMessage(from, "Booking cancelled.");
-        delete sessions[from];
       }
+
+      delete sessions[from];
     }
 
-    res.sendStatus(200);
   } catch (error) {
-    console.error(error);
-    res.sendStatus(500);
+    console.error("Processing error:", error);
   }
-});
-
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+}
